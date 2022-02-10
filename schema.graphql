@@ -1,0 +1,52 @@
+type LiquidityPool @entity {
+  id: ID!
+  baseToken: Token! @index
+  quoteToken: Token! @index
+  poolToken: Token! @index
+  baseTokenVolume: BigInt!
+  quoteTokenVolume: BigInt!
+}
+
+type Token @entity {
+  id: ID!
+  tokenID: Int! @index
+  supply: BigInt!
+  name: String! 
+  symbol: String! @index
+  decimals: Int!
+}
+
+type TokenSwap @entity {
+  timestamp: Date!
+  pool: Pool! @index
+  fromToken: Token!
+  toToken: Token!
+  qtyFrom: BigInt!
+  qtyTo: BigInt!
+  fees: Int!
+  account: String! 
+}
+
+type ContributeLiquidity {
+  id: ID!
+  account: String!
+  timestamp: Date!
+  pool: Pool!
+  quantityLPTokenReceived: BigInt!
+  quantityBaseTokenProvided: BigInt!
+  quantityQuoteTokenProvided: BigInt!
+}
+
+type RemoveLiquidity {
+  id: ID!
+  account: String!
+  timestamp: Date!
+  pool: Pool!
+  quantityLPTokenProvided: BigInt!
+  quantityBaseTokenReceived: BigInt!
+  quantityQuoteTokenReceived: BigInt!
+}
+
+
+
+

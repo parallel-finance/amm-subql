@@ -1,0 +1,27 @@
+{
+  "name": "amm-subql",
+  "version": "1.0.0",
+  "description": "Subql Server for indexing amm swap, lp and token creation events",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -b",
+    "prepack": "rm -rf dist && npm build",
+    "test": "jest",
+    "codegen": "./node_modules/.bin/subql codegen"
+  },
+  "homepage": "https://github.com/subquery/subql-starter",
+  "repository": "github:subquery/subql-starter",
+  "files": [
+    "dist",
+    "schema.graphql",
+    "project.yaml"
+  ],
+  "author": "Parallel Finance",
+  "license": "MIT",
+  "devDependencies": {
+    "@polkadot/api": "^7",
+    "@subql/types": "latest",
+    "typescript": "^4.1.3",
+    "@subql/cli": "latest"
+  }
+}

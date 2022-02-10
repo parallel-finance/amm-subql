@@ -1,0 +1,25 @@
+specVersion: 0.2.0
+name: amm-subql
+version: 1.0.0
+description: Subql Server for indexing amm swap, lp and token creation events
+repository: git@github.com:parallel-finance/amm-subql.git
+schema:
+  file: ./schema.graphql
+network:
+  endpoint: wss://regnet-rpc.parallel.fi
+  genesisHash: '0xa9c3b437a314688da50e4330b567cf6fea14e5b7b72099b4f81a8100a6fccd0f'
+dataSources:
+  - kind: substrate/Runtime
+    startBlock: 1
+    mapping:
+      file: ./dist/index.js
+      handlers:
+        - handler: handleBlock
+          kind: substrate/BlockHandler
+        - handler: handleEvent
+          kind: substrate/EventHandler
+          filter:
+            module: balances
+            method: Deposit
+        - handler: handleCall
+          kind: substrate/CallHandler
