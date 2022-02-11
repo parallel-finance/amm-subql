@@ -14,12 +14,35 @@ dataSources:
     mapping:
       file: ./dist/index.js
       handlers:
-        - handler: handleBlock
-          kind: substrate/BlockHandler
-        - handler: handleEvent
-          kind: substrate/EventHandler
-          filter:
-            module: balances
-            method: Deposit
-        - handler: handleCall
+        - handler: handleTokenCreate
           kind: substrate/CallHandler
+          filter: 
+            module: assets
+            method: forceCreate
+        - handler: handleTokenMeta
+          kind: substrate/CallHandler
+          filter: 
+            module: assets
+            method: forceSetMetadata
+        - handler: handlePoolCreate
+          kind: substrate/CallHandler
+          filter: 
+            module: amm
+            method: createPool
+        - handler: handlePoolAddLiquidity
+          kind: substrate/CallHandler
+          filter: 
+            module: amm
+            method: addLiquidity
+        - handler: handlePoolRemoveLiquidity
+          kind: substrate/CallHandler
+          filter: 
+            module: amm
+            method: removeLiquidity
+        - handler: handleAmmTrade
+          kind: substrate/CallHandler
+          filter: 
+            module: ammRoute
+            method: trade
+            
+            

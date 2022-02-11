@@ -1,17 +1,9 @@
-type LiquidityPool  @entity {
-  id: ID!
-  baseToken: Token! @index
-  quoteToken: Token! @index
-  poolToken: Token! @index
-  baseTokenVolume: BigInt!
-  quoteTokenVolume: BigInt!
-}
-
 type Token @entity {
   id: ID!
-  tokenID: Int! @index
+  created: Date!
+  tokenId: Int! @index
   supply: BigInt!
-  name: String! 
+  name: String!
   symbol: String! @index
   decimals: Int!
 }
@@ -24,29 +16,49 @@ type TokenSwap @entity {
   qtyFrom: BigInt!
   qtyTo: BigInt!
   fees: Int!
-  account: String! 
+  account: String!
 }
 
-type ContributeLiquidity {
+type LiquidityDeposit @entity {
   id: ID!
-  account: String!
   timestamp: Date!
-  pool: LiquidityPool!
+  account: String!
+  pool: LiquidityPool! @index
   quantityLPTokenReceived: BigInt!
   quantityBaseTokenProvided: BigInt!
   quantityQuoteTokenProvided: BigInt!
 }
 
-type RemoveLiquidity {
+type LiquidityWithdrawal @entity {
   id: ID!
-  account: String!
   timestamp: Date!
+  account: String!
   pool: LiquidityPool!
   quantityLPTokenProvided: BigInt!
   quantityBaseTokenReceived: BigInt!
   quantityQuoteTokenReceived: BigInt!
 }
 
+type PoolSnapshot @entity {
+  id: ID!
+  pool: LiquidityPool! @index
+  timestamp: Date!
+  poolTokenSupply: BigInt!
+  baseTokenVolume: BigInt!
+  quoteTokenVolume: BigInt!
+  totalTrades: Int!
+  totalBaseTokenTraded: BigInt!
+  totalQuoteTokenTraded: BigInt!
+}
 
 
-
+type LiquidityPool @entity {
+  id: ID!
+  created: Date!
+  baseToken: Token! @index
+  quoteToken: Token! @index
+  poolToken: Token! @index
+  baseTokenVolume: BigInt!
+  quoteTokenVolume: BigInt!
+  history: [PoolSnapshot]
+}
