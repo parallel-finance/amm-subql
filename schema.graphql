@@ -1,11 +1,13 @@
 type Token @entity {
   id: ID!
   created: Date!
-  tokenId: Int! @index
+  lastEdited: Date!
+  tokenId: String! @index
   supply: BigInt!
   name: String!
   symbol: String! @index
   decimals: Int!
+  isFrozen: Boolean
 }
 
 type TokenSwap @entity {
