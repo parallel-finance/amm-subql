@@ -7,7 +7,7 @@ schema:
   file: ./schema.graphql
 network:
   endpoint: wss://regnet-rpc.parallel.fi
-  genesisHash: '0xa9c3b437a314688da50e4330b567cf6fea14e5b7b72099b4f81a8100a6fccd0f'
+  genesisHash: ''
 dataSources:
   - kind: substrate/Runtime
     startBlock: 1
@@ -15,32 +15,32 @@ dataSources:
       file: ./dist/index.js
       handlers:
         - handler: handleTokenCreate
-          kind: substrate/CallHandler
+          kind: substrate/EventHandler
           filter: 
             module: assets
             method: forceCreate
         - handler: handleTokenMeta
-          kind: substrate/CallHandler
+          kind: substrate/EventHandler
           filter: 
             module: assets
             method: forceSetMetadata
         - handler: handlePoolCreate
-          kind: substrate/CallHandler
+          kind: substrate/EventHandler
           filter: 
             module: amm
             method: createPool
         - handler: handlePoolAddLiquidity
-          kind: substrate/CallHandler
+          kind: substrate/EventHandler
           filter: 
             module: amm
             method: addLiquidity
         - handler: handlePoolRemoveLiquidity
-          kind: substrate/CallHandler
+          kind: substrate/EventHandler
           filter: 
             module: amm
             method: removeLiquidity
         - handler: handleAmmTrade
-          kind: substrate/CallHandler
+          kind: substrate/EventHandler
           filter: 
             module: ammRoute
             method: trade

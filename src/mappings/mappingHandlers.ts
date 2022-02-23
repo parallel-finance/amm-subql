@@ -1,132 +1,202 @@
-import {SubstrateExtrinsic,SubstrateEvent,SubstrateBlock} from "@subql/types";
-import {Balance} from "@polkadot/types/interfaces";
+import {
+  SubstrateExtrinsic,
+  SubstrateEvent,
+  SubstrateBlock,
+} from "@subql/types";
+import { Balance } from "@polkadot/types/interfaces";
 import { LiquidityPool, Token, TokenSwap } from "../types";
 import { LiquidityDeposit } from "../types/models/LiquidityDeposit";
 import { LiquidityWithdrawal } from "../types/models/LiquidityWithdrawal";
-import { v4 as uuid } from 'uuid';
-
-
+import { v4 as uuid } from "uuid";
 
 // Token:Create
 export const handleTokenCreate = async (event: SubstrateEvent) => {
-    const { event: { data: [assetId] } } = event;
-    const token = new Token(uuid());
-    token.tokenId = assetId.toString();
-    token.save()
-}
+  const {
+    event: {
+      data: [assetId],
+    },
+  } = event;
+  const token = new Token(uuid());
+  token.tokenId = assetId.toString();
+  token.save();
+};
 
 // Token:SetMeta
 export const handleTokenMeta = async (event: SubstrateEvent) => {
-    const { event: { data: [assetId, name, symbol, decimals, isFrozen ] }} = event; 
-    const [token] = await Token.getByTokenId(assetId.toString());
-    token.name = name.toString();
-    token.symbol = symbol.toString();
-    token.decimals = Number.parseInt(decimals.toString()) ;
-    token.isFrozen = isFrozen.toString() === '1';
-    await token.save()
-} 
-
+  const {
+    event: {
+      data: [assetId, name, symbol, decimals, isFrozen],
+    },
+  } = event;
+  const [token] = await Token.getByTokenId(assetId.toString());
+  token.name = name.toString();
+  token.symbol = symbol.toString();
+  token.decimals = Number.parseInt(decimals.toString());
+  token.isFrozen = isFrozen.toString() === "1";
+  await token.save();
+};
 
 // Pool:Create
 export const handlePoolCreate = async (event: SubstrateEvent) => {
-    const { event: { data: [sender, tokenBase, tokenQuote, tokenLP] } } = event;
-    const pool = new LiquidityPool(uuid());
-    pool.created = new Date()
-    const [base] = await Token.getByTokenId(tokenBase.toString())
-    const [quote] = await Token.getByTokenId(tokenQuote.toString()) 
-    const [lp] = await Token.getByTokenId(tokenLP.toString())
-    pool.baseTokenId = base.id
-    pool.quoteTokenId = quote.id
-    pool.poolTokenId = lp.id
-    pool.baseTokenVolume = BigInt(0); 
-    pool.quoteTokenVolume = BigInt(0); 
-    await pool.save()
-}
-
+  const {
+    event: {
+      data: [sender, tokenBase, tokenQuote, tokenLP],
+    },
+  } = event;
+  const pool = new LiquidityPool(uuid());
+  pool.created = new Date();
+  const [base] = await Token.getByTokenId(tokenBase.toString());
+  const [quote] = await Token.getByTokenId(tokenQuote.toString());
+  const [lp] = await Token.getByTokenId(tokenLP.toString());
+  pool.baseTokenId = base.id;
+  pool.quoteTokenId = quote.id;
+  pool.poolTokenId = lp.id;
+  pool.baseTokenVolume = BigInt(0);
+  pool.quoteTokenVolume = BigInt(0);
+  await pool.save();
+};
 
 // Pool:AddLiquidity
 // should have both quantities of token
 // should have pool id / lp token id
 export const handlePoolAddLiquidity = async (event: SubstrateEvent) => {
-    const { event: { data: [sender, tokenBase, tokenQuote, tokenLP, quantityBase, quantityQuote] } } = event;
-    const [pool] = await LiquidityPool.getByPoolTokenId(tokenLP.toString())
-    if (pool.baseTokenId === tokenBase.toString() && pool.quoteTokenId === tokenQuote.toString()) {
+  const {
+    event: {
+      data: [
+        sender,
+        tokenBase,
+        tokenQuote,
+        tokenLP,
+        quantityBase,
+        quantityQuote,
+      ],
+    },
+  } = event;
+  const [pool] = await LiquidityPool.getByPoolTokenId(tokenLP.toString());
+  if (
+    pool.baseTokenId === tokenBase.toString() &&
+    pool.quoteTokenId === tokenQuote.toString()
+  ) {
+    const Deposit = new LiquidityDeposit(uuid());
+    const qtyBase = (quantityBase as Balance).toBigInt();
+    const qtyQuote = (quantityQuote as Balance).toBigInt();
+    Deposit.account = sender.toString();
+    Deposit.timestamp = new Date();
+    Deposit.quantityBaseTokenProvided = qtyBase;
+    Deposit.quantityQuoteTokenProvided = qtyQuote;
 
-        const Deposit = new LiquidityDeposit(uuid());
-        const qtyBase = (quantityBase as Balance).toBigInt();
-        const qtyQuote = (quantityQuote as Balance).toBigInt();
-        Deposit.account = sender.toString();
-        Deposit.timestamp = new Date();
-        Deposit.quantityBaseTokenProvided = qtyBase;
-        Deposit.quantityQuoteTokenProvided = qtyQuote;
-        Deposit.poolId = pool.id;
-        pool.baseTokenVolume += qtyBase;
-        pool.quoteTokenVolume += qtyQuote;
-        await Deposit.save();
-        await pool.save();
-    } else {
-        // log error when unmatched
-    }
-} 
+    Deposit.poolId = pool.id;
+    pool.baseTokenVolume += qtyBase;
+    pool.quoteTokenVolume += qtyQuote;
+    await Deposit.save();
+    await pool.save();
+  } else {
+    // log error when unmatched
+  }
+};
 
 // Pool:RemoveLiquidity
 // shyould have the pool id / lptoken id
 // should have both quantities of token
+// should we include the new balances here as well?
 export const handlePoolRemoveLiquidity = async (event: SubstrateEvent) => {
-    const { event: { data: [sender, tokenBase, tokenQuote, tokenLP, quantityBase, quantityQuote, quantityLP] } } = event;
-    const [pool] = await LiquidityPool.getByPoolTokenId(tokenLP.toString())
-    if (pool.baseTokenId === tokenBase.toString() && pool.quoteTokenId === tokenQuote.toString()) {    
-        const Withdrawal = new LiquidityWithdrawal(uuid());
-        const qtyBase = (quantityBase as Balance).toBigInt();
-        const qtyQuote = (quantityQuote as Balance).toBigInt();
-        const qtyLP = (quantityLP as Balance).toBigInt();
+  const {
+    event: {
+      data: [
+        sender,
+        tokenBase,
+        tokenQuote,
+        tokenLP,
+        quantityBase,
+        quantityQuote,
+        quantityLP,
+      ],
+    },
+  } = event;
+  const [pool] = await LiquidityPool.getByPoolTokenId(tokenLP.toString());
+  if (
+    pool.baseTokenId === tokenBase.toString() &&
+    pool.quoteTokenId === tokenQuote.toString()
+  ) {
+    const Withdrawal = new LiquidityWithdrawal(uuid());
+    const qtyBase = (quantityBase as Balance).toBigInt();
+    const qtyQuote = (quantityQuote as Balance).toBigInt();
+    const qtyLP = (quantityLP as Balance).toBigInt();
 
-        Withdrawal.account = sender.toString();
-        Withdrawal.timestamp = new Date();
-        Withdrawal.poolId = pool.id;
-        Withdrawal.quantityBaseTokenReceived = qtyBase;
-        Withdrawal.quantityQuoteTokenReceived = qtyQuote;
-        Withdrawal.quantityLPTokenProvided = qtyLP;
-        
-        pool.baseTokenVolume -= qtyBase;
-        pool.quoteTokenVolume -= qtyQuote;
-        await Withdrawal.save();
-        await pool.save();
-    } else {
-        // log error when unmatched
-    }
-}
+    Withdrawal.account = sender.toString();
+    Withdrawal.timestamp = new Date();
+    Withdrawal.poolId = pool.id;
+    Withdrawal.quantityBaseTokenReceived = qtyBase;
+    Withdrawal.quantityQuoteTokenReceived = qtyQuote;
+    Withdrawal.quantityLPTokenProvided = qtyLP;
+
+    pool.baseTokenVolume -= qtyBase;
+    pool.quoteTokenVolume -= qtyQuote;
+    await Withdrawal.save();
+    await pool.save();
+  } else {
+    // log error when unmatched
+  }
+};
 
 // Swap
 // should have pool asset id for this event
-// should include the fees? 
+// should include the fees?
 
 export const handleAmmTrade = async (event: SubstrateEvent) => {
-    const { event: { data: [sender, tokenBase, tokenQuote, tokenLP, quantityBase, quantityQuote, poolBalanceBase, poolBalanceQuote ] } } = event;
-    const [pool] = await LiquidityPool.getByPoolTokenId(tokenLP.toString());
-    if (pool.baseTokenId === tokenBase.toString() && pool.quoteTokenId === tokenQuote.toString()) {    
-        const trade = new TokenSwap(uuid())
-        const qtyBase = (quantityBase as Balance).toBigInt();
-        const qtyQuote = (quantityQuote as Balance).toBigInt();
-        const balanceBase = (poolBalanceBase as Balance).toBigInt();
-        const balanceQuote = (poolBalanceQuote as Balance).toBigInt();
-        trade.account = sender.toString()
-        trade.timestamp = new Date();
-        trade.fromTokenId = tokenBase.toString();
-        trade.toTokenId = tokenQuote.toString();
-        trade.qtyFrom = qtyBase;
-        trade.qtyTo = qtyQuote;
-        trade.poolId = pool.id;
+  const {
+    event: {
+      data: [
+        sender,
+        tokenBase,
+        tokenQuote,
+        tokenLP,
+        quantityBase,
+        quantityQuote,
+        poolBalanceBase,
+        poolBalanceQuote,
+      ],
+    },
+  } = event;
+  const [pool] = await LiquidityPool.getByPoolTokenId(tokenLP.toString());
+  if (
+    pool.baseTokenId === tokenBase.toString() &&
+    pool.quoteTokenId === tokenQuote.toString()
+  ) {
+    const trade = new TokenSwap(uuid());
+    const qtyBase = (quantityBase as Balance).toBigInt();
+    const qtyQuote = (quantityQuote as Balance).toBigInt();
+    const balanceBase = (poolBalanceBase as Balance).toBigInt();
+    const balanceQuote = (poolBalanceQuote as Balance).toBigInt();
+    trade.account = sender.toString();
+    trade.timestamp = new Date();
+    trade.fromTokenId = tokenBase.toString();
+    trade.toTokenId = tokenQuote.toString();
+    trade.qtyFrom = qtyBase;
+    trade.qtyTo = qtyQuote;
+    trade.poolId = pool.id;
 
-        pool.baseTokenVolume = balanceBase;
-        pool.quoteTokenVolume = balanceQuote;
-        await trade.save();
-        await pool.save();
-    } else {
-        // log error when unmatched
-    }
-}  
+    pool.baseTokenVolume = balanceBase;
+    pool.quoteTokenVolume = balanceQuote;
+    await trade.save();
+    await pool.save();
+  } else {
+    // log error when unmatched
+  }
+};
 
+// // Add Liquidity
+// - include both pool token balances?
+// - include pool asset id to identify the pool added to
+
+// // Remove Liquidity
+// - include both pool token balances after?
+// - include the pool asset id?
+// - include both quantities of token removed (currently says 'liquidity')
+
+// // Trade
+// - include the pool asset id
+// - include the fees amount ? I could pull this from a state object to track the current fees
 
 // export async function handleCall(extrinsic: SubstrateExtrinsic): Promise<void> {
 //     const record = await StarterEntity.get(extrinsic.block.block.header.hash.toString());
@@ -136,10 +206,7 @@ export const handleAmmTrade = async (event: SubstrateEvent) => {
 //     record.field5 = true;
 //     await record.save();
 // }
-// GenerateDailyPoolTVL? 
-
-
-
+// GenerateDailyPoolTVL?
 
 // Default Handlers
 
@@ -161,5 +228,3 @@ export const handleAmmTrade = async (event: SubstrateEvent) => {
 //     record.field3 = (balance as Balance).toBigInt();
 //     await record.save();
 // }
-
-
