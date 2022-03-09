@@ -2,13 +2,12 @@
 
 type Token @entity {
   id: ID!
-  created: Date!
-  lastEdited: Date!
-  tokenId: String! @index
-  supply: BigInt!
-  name: String!
-  symbol: String! @index
-  decimals: Int!
+  lastEdited: Date
+  tokenId: String @index
+  supply: BigInt
+  name: String
+  symbol: String @index
+  decimals: Int
   isFrozen: Boolean
 }
 
@@ -59,7 +58,6 @@ type PoolSnapshot @entity {
 
 type LiquidityPool @entity {
   id: ID!
-  created: Date!
   baseToken: Token! @index
   quoteToken: Token! @index
   poolToken: Token! @index

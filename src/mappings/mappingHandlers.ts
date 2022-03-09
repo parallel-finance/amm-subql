@@ -7,53 +7,101 @@ import { Balance } from "@polkadot/types/interfaces";
 import { LiquidityPool, Token, TokenSwap } from "../types";
 import { LiquidityDeposit } from "../types/models/LiquidityDeposit";
 import { LiquidityWithdrawal } from "../types/models/LiquidityWithdrawal";
-import { v4 as uuid } from "uuid";
+import * as uuid from "uuid";
 
 // Token:Create
 export const handleTokenCreate = async (event: SubstrateEvent) => {
   const {
-    event: {
-      data: [assetId],
-    },
+    event: { method, data },
   } = event;
-  const token = new Token(uuid());
-  token.tokenId = assetId.toString();
-  token.save();
+  const [assetId] = data;
+  console.log("Token Created Event: ", method, " ", assetId);
+  if (method === "Created" || method === "ForceCreated") {
+    try {
+      const token = new Token(assetId.toString());
+      token.tokenId = assetId.toString();
+      await token.save();
+    } catch (e) {
+      console.error("failed to create token: ", e);
+    }
+  }
+};
+
+export const NATIVE_TOKEN = {
+  decimals: 12,
+  name: "Heiko",
+  symbol: "HKO",
+  supply: BigInt("1000000000000000000000"),
+  isFrozen: "false",
 };
 
 // Token:SetMeta
 export const handleTokenMeta = async (event: SubstrateEvent) => {
   const {
-    event: {
-      data: [assetId, name, symbol, decimals, isFrozen],
-    },
+    event: { data },
   } = event;
-  const [token] = await Token.getByTokenId(assetId.toString());
-  token.name = name.toString();
-  token.symbol = symbol.toString();
-  token.decimals = Number.parseInt(decimals.toString());
-  token.isFrozen = isFrozen.toString() === "1";
-  await token.save();
+  const [assetId, name, symbol, decimals, isFrozen] = data;
+  try {
+    console.log("Token Meta Event: ", assetId);
+    const [token] = await Token.getByTokenId(assetId.toString());
+    token.name = name.toHuman() as string;
+    token.symbol = symbol.toHuman() as string;
+    token.decimals = Number.parseInt(decimals.toString());
+    token.isFrozen = isFrozen.toString() === "true";
+    await token.save();
+  } catch (e) {
+    let foo = JSON.stringify(e, undefined, 2);
+    console.error("failed to add meta: ", foo);
+  }
+};
+const createNativeToken = async () => {
+  const nativeToken = new Token("0");
+  nativeToken.tokenId = "0";
+  nativeToken.decimals = NATIVE_TOKEN.decimals;
+  nativeToken.symbol = NATIVE_TOKEN.symbol;
+  nativeToken.name = NATIVE_TOKEN.name;
+  nativeToken.supply = NATIVE_TOKEN.supply;
+  nativeToken.isFrozen = NATIVE_TOKEN.isFrozen === "true";
+  await nativeToken.save();
 };
 
+const fetchToken = async (id) => {
+  const [token] = await Token.getByTokenId(id);
+  if (!token) {
+    if (id === "0") {
+      await createNativeToken();
+      const [nativeToken] = await Token.getByTokenId(id);
+      return nativeToken;
+    } else {
+      throw new Error("token not found: " + id);
+    }
+  }
+  return token;
+};
 // Pool:Create
 export const handlePoolCreate = async (event: SubstrateEvent) => {
   const {
-    event: {
-      data: [sender, tokenBase, tokenQuote, tokenLP],
-    },
+    event: { data, method },
   } = event;
-  const pool = new LiquidityPool(uuid());
-  pool.created = new Date();
-  const [base] = await Token.getByTokenId(tokenBase.toString());
-  const [quote] = await Token.getByTokenId(tokenQuote.toString());
-  const [lp] = await Token.getByTokenId(tokenLP.toString());
-  pool.baseTokenId = base.id;
-  pool.quoteTokenId = quote.id;
-  pool.poolTokenId = lp.id;
-  pool.baseTokenVolume = BigInt(0);
-  pool.quoteTokenVolume = BigInt(0);
-  await pool.save();
+
+  const [sender, tokenBase, tokenQuote, tokenLP] = data;
+  if (method === "PoolCreated") {
+    try {
+      console.log("Pool Created Event: ", tokenLP);
+      const pool = new LiquidityPool(`999000${tokenLP.toString()}`);
+      const base = await fetchToken(tokenBase.toString());
+      const quote = await fetchToken(tokenQuote.toString());
+      const lp = await fetchToken(tokenLP.toString());
+      pool.baseTokenId = base.id;
+      pool.quoteTokenId = quote.id;
+      pool.poolTokenId = lp.id;
+      pool.baseTokenVolume = BigInt(0);
+      pool.quoteTokenVolume = BigInt(0);
+      await pool.save();
+    } catch (e) {
+      console.error("failed to create pool: ", e);
+    }
+  }
 };
 
 // Pool:AddLiquidity
@@ -72,27 +120,30 @@ export const handlePoolAddLiquidity = async (event: SubstrateEvent) => {
       ],
     },
   } = event;
-  const [pool] = await LiquidityPool.getByPoolTokenId(tokenLP.toString());
-  if (
-    pool.baseTokenId === tokenBase.toString() &&
-    pool.quoteTokenId === tokenQuote.toString()
-  ) {
-    const Deposit = new LiquidityDeposit(uuid());
-    const qtyBase = (quantityBase as Balance).toBigInt();
-    const qtyQuote = (quantityQuote as Balance).toBigInt();
-    Deposit.account = sender.toString();
-    Deposit.timestamp = new Date();
-    Deposit.quantityBaseTokenProvided = qtyBase;
-    Deposit.quantityQuoteTokenProvided = qtyQuote;
+  console.log("Pool Add Liquidity Event: ", tokenLP);
+  try {
+    const [pool] = await LiquidityPool.getByPoolTokenId(tokenLP.toString());
+    if (
+      pool.baseTokenId === tokenBase.toString() &&
+      pool.quoteTokenId === tokenQuote.toString()
+    ) {
+      const deposit = new LiquidityDeposit(uuid.v4());
+      const qtyBase = BigInt(quantityBase.toHuman() as string);
+      const qtyQuote = BigInt(quantityQuote.toHuman() as string);
+      deposit.account = sender.toString();
+      deposit.timestamp = new Date();
+      deposit.quantityBaseTokenProvided = qtyBase;
+      deposit.quantityQuoteTokenProvided = qtyQuote;
 
-    Deposit.poolId = pool.id;
-    pool.baseTokenVolume += qtyBase;
-    pool.quoteTokenVolume += qtyQuote;
-    await Deposit.save();
-    await pool.save();
-  } else {
-    // log error when unmatched
-  }
+      deposit.poolId = pool.id;
+      pool.baseTokenVolume += qtyBase;
+      pool.quoteTokenVolume += qtyQuote;
+      await deposit.save();
+      await pool.save();
+    } else {
+      // log error when unmatched
+    }
+  } catch (e) {}
 };
 
 // Pool:RemoveLiquidity
@@ -113,30 +164,34 @@ export const handlePoolRemoveLiquidity = async (event: SubstrateEvent) => {
       ],
     },
   } = event;
-  const [pool] = await LiquidityPool.getByPoolTokenId(tokenLP.toString());
-  if (
-    pool.baseTokenId === tokenBase.toString() &&
-    pool.quoteTokenId === tokenQuote.toString()
-  ) {
-    const Withdrawal = new LiquidityWithdrawal(uuid());
-    const qtyBase = (quantityBase as Balance).toBigInt();
-    const qtyQuote = (quantityQuote as Balance).toBigInt();
-    const qtyLP = (quantityLP as Balance).toBigInt();
+  try {
+    console.log("Pool Remove Liquidity Event: ", tokenLP);
 
-    Withdrawal.account = sender.toString();
-    Withdrawal.timestamp = new Date();
-    Withdrawal.poolId = pool.id;
-    Withdrawal.quantityBaseTokenReceived = qtyBase;
-    Withdrawal.quantityQuoteTokenReceived = qtyQuote;
-    Withdrawal.quantityLPTokenProvided = qtyLP;
+    const [pool] = await LiquidityPool.getByPoolTokenId(tokenLP.toString());
+    if (
+      pool.baseTokenId === tokenBase.toString() &&
+      pool.quoteTokenId === tokenQuote.toString()
+    ) {
+      const withdrawal = new LiquidityWithdrawal(uuid.v4());
+      const qtyBase = (quantityBase as Balance).toBigInt();
+      const qtyQuote = (quantityQuote as Balance).toBigInt();
+      const qtyLP = (quantityLP as Balance).toBigInt();
 
-    pool.baseTokenVolume -= qtyBase;
-    pool.quoteTokenVolume -= qtyQuote;
-    await Withdrawal.save();
-    await pool.save();
-  } else {
-    // log error when unmatched
-  }
+      withdrawal.account = sender.toString();
+      withdrawal.timestamp = new Date();
+      withdrawal.poolId = pool.id;
+      withdrawal.quantityBaseTokenReceived = qtyBase;
+      withdrawal.quantityQuoteTokenReceived = qtyQuote;
+      withdrawal.quantityLPTokenProvided = qtyLP;
+
+      pool.baseTokenVolume -= qtyBase;
+      pool.quoteTokenVolume -= qtyQuote;
+      await withdrawal.save();
+      await pool.save();
+    } else {
+      // log error when unmatched
+    }
+  } catch (e) {}
 };
 
 // Swap
@@ -158,12 +213,14 @@ export const handleAmmTrade = async (event: SubstrateEvent) => {
       ],
     },
   } = event;
+  console.log("AMM Trade Event: ", tokenLP);
+
   const [pool] = await LiquidityPool.getByPoolTokenId(tokenLP.toString());
   if (
     pool.baseTokenId === tokenBase.toString() &&
     pool.quoteTokenId === tokenQuote.toString()
   ) {
-    const trade = new TokenSwap(uuid());
+    const trade = new TokenSwap(uuid.v4());
     const qtyBase = (quantityBase as Balance).toBigInt();
     const qtyQuote = (quantityQuote as Balance).toBigInt();
     const balanceBase = (poolBalanceBase as Balance).toBigInt();
