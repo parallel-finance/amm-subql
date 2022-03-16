@@ -17,6 +17,7 @@ type Token @entity {
 }
 
 type TokenSwap @entity {
+  id: ID!
   timestamp: Date!
   pool: LiquidityPool! @index
   fromToken: Token!

@@ -6,11 +6,11 @@ repository: git@github.com:parallel-finance/amm-subql.git
 schema:
   file: ./schema.graphql
 network:
-  endpoint: wss://regnet-rpc.parallel.fi
-  genesisHash: '0xa9c3b437a314688da50e4330b567cf6fea14e5b7b72099b4f81a8100a6fccd0f'
+  endpoint: wss://regnet3-rpc.parallel.fi
+  genesisHash: '0xdcbab0fce9d8e692ebe65ad983c7b62199f7e0b3cf6e657edf63240601d73857'
 dataSources:
   - kind: substrate/Runtime
-    startBlock: 1
+    startBlock: 8676
     mapping:
       file: ./dist/index.js
       handlers:
@@ -19,7 +19,4 @@ dataSources:
         - handler: handleEvent
           kind: substrate/EventHandler
           filter:
-            module: balances
-            method: Deposit
-        - handler: handleCall
-          kind: substrate/CallHandler
+            module: amm

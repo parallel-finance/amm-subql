@@ -1,33 +1,97 @@
-import {SubstrateExtrinsic,SubstrateEvent,SubstrateBlock} from "@subql/types";
-import {StarterEntity} from "../types";
-import {Balance} from "@polkadot/types/interfaces";
+import {SubstrateEvent,SubstrateBlock} from "@subql/types";
+import { LiquidityPool } from "../types";
+import { GenericEventData } from "@polkadot/types";
 
 
 export async function handleBlock(block: SubstrateBlock): Promise<void> {
     //Create a new starterEntity with ID using block hash
-    let record = new StarterEntity(block.block.header.hash.toString());
     //Record block number
-    record.field1 = block.block.header.number.toNumber();
-    await record.save();
+
 }
 
+type LiquidityRemoved = {
+    sender: string,
+    base_currency_id: number,
+    quote_currency_id: number,
+    liquidity: string,
+    base_amount_removed: string,
+    quote_amount_removed: string,
+    lp_token_id: number,
+    new_base_amount: string,
+    new_quote_amount: string
+}
+
+type LiquidityAdded = {
+    sender: string,
+    base_currency_id: number,
+    quote_currency_id: number,
+    base_amount_added: number,
+    quote_amount_added: number,
+    lp_token_id: number,
+    new_base_amount: number,
+    new_quote_amount: number
+}
+
+type Traded = {
+    trader: string,
+    currency_id_in: number,
+    currency_id_out: number,
+    amount_in: string,
+    amount_out: string,
+    lp_token_id: number,
+    new_quote_amount: string,
+    new_base_amount: string
+}
+
+type PoolCreated = {
+    trader: string,
+    currency_id_in: number,
+    currency_id_out: number,
+    lp_token_id: number
+}
+
+// LiquidityAdded LiquidityRemoved Traded
+// 
+
+function handleAddLiquidity(data: GenericEventData): LiquidityAdded {
+    const jsdata = JSON.parse(data.toString()) 
+    const [
+        sender,
+        base_currency_id,
+        quote_currency_id,
+        base_amount_added,
+        quote_amount_added,
+        lp_token_id,
+        new_base_amount,
+        new_quote_amount
+    ] = jsdata
+    return {
+        sender,
+        base_currency_id,
+        quote_currency_id,
+        base_amount_added,
+        quote_amount_added,
+        lp_token_id,
+        new_base_amount,
+        new_quote_amount
+    }
+}
 export async function handleEvent(event: SubstrateEvent): Promise<void> {
-    const {event: {data: [account, balance]}} = event;
-    //Retrieve the record by its ID
-    const record = await StarterEntity.get(event.block.block.header.hash.toString());
-    record.field2 = account.toString();
-    //Big integer type Balance of a transfer event
-    record.field3 = (balance as Balance).toBigInt();
-    await record.save();
-}
+    const {event: {data}} = event;
+    const method = event.event.method
 
-export async function handleCall(extrinsic: SubstrateExtrinsic): Promise<void> {
-    const record = await StarterEntity.get(extrinsic.block.block.header.hash.toString());
-    //Date type timestamp
-    record.field4 = extrinsic.block.timestamp;
-    //Boolean tyep
-    record.field5 = true;
-    await record.save();
-}
+    switch(method) {
+        case 'LiquidityAdded':
+            const re = handleAddLiquidity(data)
+            logger.warn(`${method} parse result: %o`, re)
+            break
+        case 'LiquidityRemoved':
+            break
+        case 'PoolCreated':
+            break
+        case 'Traded':
+            break
+    }
 
+}
 
