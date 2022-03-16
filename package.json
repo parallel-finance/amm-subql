@@ -18,6 +18,9 @@
   ],
   "author": "Parallel Finance",
   "license": "MIT",
+  "dependencies": {
+    "bignumber.js": "^9.0.2"
+  },
   "devDependencies": {
     "@polkadot/api": "^7",
     "@subql/types": "latest",
