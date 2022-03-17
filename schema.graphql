@@ -1,53 +1,51 @@
+
+type Pool @entity {
+  id: ID! # pool id
+  blockHeight: Int! @index
+  trader: String
+  baseTokenId: Int!   # asset id
+  quoteTokenId: Int!
+  timestamp: Date!
+}
+
 type LiquidityPool  @entity {
   id: ID!
-  baseToken: Token! @index
-  quoteToken: Token! @index
-  poolToken: Token! @index
-  baseTokenVolume: BigInt!
-  quoteTokenVolume: BigInt!
+  blockHeight: Int! @index
+  pool: Pool! @index
+  baseTokenVolume: String
+  quoteTokenVolume: String
+  timestamp: Date!
 }
 
-type Token @entity {
+type SwapTrade @entity {
   id: ID!
-  tokenID: Int! @index
-  supply: BigInt!
-  name: String! 
-  symbol: String! @index
-  decimals: Int!
-}
-
-type TokenSwap @entity {
-  id: ID!
+  trader: String!
+  blockHeight: Int! @index
   timestamp: Date!
   pool: LiquidityPool! @index
-  fromToken: Token!
-  toToken: Token!
-  qtyFrom: BigInt!
-  qtyTo: BigInt!
-  fees: Int!
-  account: String! 
+  tokenFrom: Int!
+  amountFrom: String!
+  tokenTo: Int!
+  amountTo: String!
 }
 
-type ContributeLiquidity {
+type ContributeLiquidity @entity {
   id: ID!
-  account: String!
+  blockHeight: Int! @index
+  sender: String!
   timestamp: Date!
   pool: LiquidityPool!
-  quantityLPTokenReceived: BigInt!
-  quantityBaseTokenProvided: BigInt!
-  quantityQuoteTokenProvided: BigInt!
+  baseAmountAdded: String!
+  quoteAmountAdded: String!
 }
 
-type RemoveLiquidity {
+type RemoveLiquidity @entity {
   id: ID!
-  account: String!
+  sender: String!
+  blockHeight: Int! @index
   timestamp: Date!
   pool: LiquidityPool!
-  quantityLPTokenProvided: BigInt!
-  quantityBaseTokenReceived: BigInt!
-  quantityQuoteTokenReceived: BigInt!
+  liquidity: String!
+  baseAmountRemoved: String!
+  quoteAmountRemoved: String!
 }
-
-
-
-
