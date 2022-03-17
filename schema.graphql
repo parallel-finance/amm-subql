@@ -12,6 +12,7 @@ type LiquidityPool  @entity {
   id: ID!
   blockHeight: Int! @index
   pool: Pool! @index
+  action: String! @index
   baseTokenVolume: String
   quoteTokenVolume: String
   timestamp: Date!
