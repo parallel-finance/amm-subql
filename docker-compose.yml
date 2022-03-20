@@ -31,7 +31,7 @@ services:
       - ./:/app
     command:
       - -f=/app
-      - --db-schema=app
+      - --log-level=debug
     healthcheck:
       test: ["CMD", "curl", "-f", "http://subquery-node:3000/ready"]
       interval: 3s

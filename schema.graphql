@@ -13,8 +13,13 @@ type LiquidityPool  @entity {
   blockHeight: Int! @index
   pool: Pool! @index
   action: String! @index
-  baseTokenVolume: String
-  quoteTokenVolume: String
+  baseVolume: String
+  quoteVolume: String
+  baseVolumeLast: String
+  quoteVolumnLase: String
+  basePriceCumulativeLast: String
+  quotePriceCumulativeLast: String
+  blockTimestampLast: String
   timestamp: Date!
 }
 
@@ -49,4 +54,13 @@ type RemoveLiquidity @entity {
   liquidity: String!
   baseAmountRemoved: String!
   quoteAmountRemoved: String!
+}
+
+type AssetValue @entity {
+  id: ID!
+  assetId: Int,
+  account: String! @index
+  blockHeight: Int @index
+  value: String!
+  blockTimevalue: String!
 }

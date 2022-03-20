@@ -6,11 +6,12 @@ repository: git@github.com:parallel-finance/amm-subql.git
 schema:
   file: ./schema.graphql
 network:
-  endpoint: wss://regnet3-rpc.parallel.fi
-  genesisHash: '0xdcbab0fce9d8e692ebe65ad983c7b62199f7e0b3cf6e657edf63240601d73857'
+  endpoint: wss://heiko-rpc.parallel.fi
+  genesisHash: '0x64a1c658a48b2e70a7fb1ad4c39eea35022568c20fc44a6e2e3d0a57aee6053b'
 dataSources:
   - kind: substrate/Runtime
-    startBlock: 8676
+    # startBlock: 121500
+    startBlock: 939032
     mapping:
       file: ./dist/index.js
       handlers:

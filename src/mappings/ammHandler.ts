@@ -90,7 +90,8 @@ async function handlePoolRecord(opt: PoolOption): Promise<string> {
         } = opt
         new_base_amount = bigIntStr(`${new_base_amount}`)
         new_quote_amount = bigIntStr(`${new_quote_amount}`)
-        const lpid = `${lp_token_id}-${block}-${timestamp}`
+        const t = (new Date(timestamp)).valueOf() / 1000
+        const lpid = `${lp_token_id}-${block}-${t}`
         const pool = await Pool.get(lp_token_id)
         if (!pool) {
             await Pool.create({
@@ -107,8 +108,8 @@ async function handlePoolRecord(opt: PoolOption): Promise<string> {
             blockHeight: opt.block,
             poolId: lp_token_id,
             action,
-            baseTokenVolume: new_base_amount,
-            quoteTokenVolume: new_quote_amount,
+            baseVolume: new_base_amount,
+            quoteVolume: new_quote_amount,
             timestamp
         }).save()
         return lpid
