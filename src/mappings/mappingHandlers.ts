@@ -3,19 +3,20 @@ import { AssetValue, LiquidityPool, Pool } from "../types";
 import { handleAddLiquidity, handleCreatePool, handleRmoveLiquidity, handleSwapTrade } from './ammHandler'
 import { bigIntStr, parseId } from "./util";
 
-export async function handleBlock(block: SubstrateBlock): Promise<void> {
-    try {
-        const start  = Date.now()
-        const blockNumber = block.block.header.number.toNumber()
-        const timestamp = block.timestamp
-        const [pkeys, vkeys] = await Promise.all([
-            api.query.amm.pools.keys(),
-            api.query.oracle.rawValues.keys()
-        ])
-        logger.warn(`fetch keys time: ${Date.now()-start}`)
 
-        for (let k of pkeys) {
+async function handlePool(pkeys: any[], blockNumber: number, timestamp: Date) {
+    try {
+        let kps = []
+        let poolQueries = []
+        pkeys.map(k => {
             const kp = (k.toHuman() as string[]).map(s => parseId(s))
+            kps.push(kp)
+            poolQueries.push(api.query.amm.pools(kp[0], kp[1]))
+        })
+        const poolRes = await Promise.all(poolQueries)
+
+        for (let ind in poolRes) {
+            const kp = kps[ind]
             const {
                 baseAmount,
                 quoteAmount,
@@ -25,7 +26,7 @@ export async function handleBlock(block: SubstrateBlock): Promise<void> {
                 blockTimestampLast,
                 price0CumulativeLast,
                 price1CumulativeLast
-            } = (await api.query.amm.pools(kp[0], kp[1])).toJSON() as any
+            } = poolRes[ind].toJSON()
 
             const t = (new Date(timestamp)).valueOf() / 1000
             const lpid = `${lpTokenId}-${blockNumber}-${t}`
@@ -56,25 +57,56 @@ export async function handleBlock(block: SubstrateBlock): Promise<void> {
             })
             record.save()
         }
-        logger.warn(`save pool time: ${Date.now()-start}`)
-        logger.debug(`raw values key length ${pkeys.length}-${vkeys.length}`)
-        for (let key of vkeys) {
-            let [owner, assetId] = key.toHuman() as any[]
+    } catch (e: any) {
+        logger.error(`handle pool info error: ${e.message}`)
+    }
+}
+
+async function handleValue(vkeys: any[], blockNumber: number) {
+    try {
+        let pars = []
+        let valueQueries = []
+        for (let k of vkeys) {
+            let [owner, assetId] = k.toHuman() as any[]
             assetId = parseId(assetId)
+            pars.push([owner, assetId])
+            valueQueries.push(api.query.oracle.rawValues(owner, assetId))
+        }
+
+        const valueRes = await Promise.all(valueQueries)
+
+        for (let ind in valueRes) {
+            const owner = pars[ind][0]
+            const assetId = pars[ind][1]
             const {
                 value,
                 timestamp
-            } = (await api.query.oracle.rawValues(owner, assetId)).toJSON() as any
-
+            } = valueRes[ind].toJSON() as any
             AssetValue.create({
                 id: `${blockNumber}-${owner}-${assetId}`,
                 account: owner,
                 assetId,
                 value: bigIntStr(value),
-                blockTimevalue: Math.floor(timestamp/1000).toString()
+                blockTimevalue: Math.floor(timestamp / 1000).toString()
             }).save()
         }
-        logger.warn(`handle timeout: ${Date.now()-start}`)
+    } catch (e: any) {
+        logger.error(`handle asset value polling error: ${e.message}`)
+    }
+}
+
+export async function handleBlock(block: SubstrateBlock): Promise<void> {
+    try {
+        const blockNumber = block.block.header.number.toNumber()
+        const timestamp = block.timestamp
+        const [pkeys, vkeys] = await Promise.all([
+            api.query.amm.pools.keys(),
+            api.query.oracle.rawValues.keys()
+        ])
+        await Promise.all([
+            handlePool(pkeys, blockNumber, timestamp),
+            handleValue(vkeys, blockNumber)
+        ])
     } catch (e: any) {
         logger.error(`block error: %o`, e.message)
     }
