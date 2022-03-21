@@ -59,7 +59,6 @@ type RemoveLiquidity @entity {
 type AssetValue @entity {
   id: ID!
   assetId: Int,
-  account: String! @index
   blockHeight: Int @index
   value: String!
   blockTimevalue: String!

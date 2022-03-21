@@ -108,3 +108,17 @@ export function bigIntStr(hex: string): string {
 export function parseId(id: string): number {
     return Number(id.replace(',', ''))
 }
+function groupBy(array: any[], f) {
+    let grps = {}
+    array.forEach((o) => {
+        let grp = JSON.stringify(f(o))
+        grps[grp] = grps[grp] || []
+        grps[grp].push[o]
+    })
+    return Object.keys(grps).map((g) => {
+        grps[g]
+    })
+}
+export function arrayGroupBy(list: any[], id: string) {
+    return groupBy(list, item => [item[id]])
+}

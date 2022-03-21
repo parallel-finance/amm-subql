@@ -55,6 +55,7 @@ async function handlePool(pkeys: any[], blockNumber: number, timestamp: Date) {
                 blockTimestampLast,
                 timestamp,
             })
+            logger.info(`dump new pool info at[${blockNumber}] pool[${lpTokenId}]`)
             record.save()
         }
     } catch (e: any) {
@@ -64,6 +65,7 @@ async function handlePool(pkeys: any[], blockNumber: number, timestamp: Date) {
 
 async function handleValue(vkeys: any[], blockNumber: number) {
     try {
+        // wrap api query
         let pars = []
         let valueQueries = []
         for (let k of vkeys) {
@@ -75,21 +77,54 @@ async function handleValue(vkeys: any[], blockNumber: number) {
 
         const valueRes = await Promise.all(valueQueries)
 
-        for (let ind in valueRes) {
-            const owner = pars[ind][0]
+        // group by assetId
+        let groups = {}
+        for (let ind in pars) {
             const assetId = pars[ind][1]
-            const {
-                value,
-                timestamp
-            } = valueRes[ind].toJSON() as any
-            AssetValue.create({
-                id: `${blockNumber}-${owner}-${assetId}`,
-                account: owner,
-                assetId,
-                value: bigIntStr(value),
-                blockTimevalue: Math.floor(timestamp / 1000).toString()
-            }).save()
+            groups[assetId] = groups[assetId] || []
+            groups[assetId].push(valueRes[ind])
         }
+
+        Object.keys(groups).map(assetId => {
+            // sort by value
+            groups[assetId].sort((a, b) => {
+                const ja = a.toJSON()
+                const jb = b.toJSON()
+                const n = Number(BigInt(ja.value) - BigInt(jb.value))
+                return n
+            })
+            const grp = groups[assetId]
+            const len = grp.length
+            const isEven = len % 2 === 0
+            let dat: { value: string, timestamp: number }
+            // handle middle
+            if (isEven) {
+                const ind = Math.floor(len / 2)
+                const it1 = JSON.parse(grp[ind])
+                const it2 = JSON.parse(grp[ind - 1])
+                // 
+                dat = {
+                    value: ((BigInt(it1.value) + BigInt(it2.value)) / BigInt(2)).toString(),
+                    timestamp: it1.timestamp
+                }
+            } else {
+                const { value, timestamp } = JSON.parse(grp[Math.floor(len / 2)])
+                dat = {
+                    value: BigInt(value).toString(),
+                    timestamp
+                }
+            }
+
+            const record = AssetValue.create({
+                id: `${blockNumber}-${assetId}`,
+                blockHeight: blockNumber,
+                assetId: Number(assetId),
+                value: dat.value,
+                blockTimevalue: Math.floor(dat.timestamp / 1000).toString()
+            })
+            logger.info(`dump new asset value at[${blockNumber}] assetId[${assetId}] value[${dat.value}]`)
+            record.save()
+        })
     } catch (e: any) {
         logger.error(`handle asset value polling error: ${e.message}`)
     }
@@ -107,10 +142,10 @@ export async function handleBlock(block: SubstrateBlock): Promise<void> {
             api.query.amm.pools.keys(),
             api.query.oracle.rawValues.keys()
         ])
-        await Promise.all([
-            handlePool(pkeys, blockNumber, timestamp),
-            handleValue(vkeys, blockNumber)
-        ])
+
+        handlePool(pkeys, blockNumber, timestamp)
+        handleValue(vkeys, blockNumber)
+
     } catch (e: any) {
         logger.error(`block error: %o`, e.message)
     }
