@@ -55,8 +55,8 @@ async function handlePool(pkeys: any[], blockNumber: number, timestamp: Date) {
                 blockTimestampLast,
                 timestamp,
             })
-            logger.info(`dump new pool info at[${blockNumber}] pool[${lpTokenId}]`)
-            record.save()
+            logger.debug(`dump new pool info at[${blockNumber}] pool[${lpTokenId}]`)
+            await record.save()
         }
     } catch (e: any) {
         logger.error(`handle pool info error: ${e.message}`)
@@ -85,7 +85,7 @@ async function handleValue(vkeys: any[], blockNumber: number) {
             groups[assetId].push(valueRes[ind])
         }
 
-        Object.keys(groups).map(assetId => {
+        for (let assetId of Object.keys(groups)) {
             // sort by value
             groups[assetId].sort((a, b) => {
                 const ja = a.toJSON()
@@ -123,8 +123,8 @@ async function handleValue(vkeys: any[], blockNumber: number) {
                 blockTimevalue: Math.floor(dat.timestamp / 1000).toString()
             })
             logger.info(`dump new asset value at[${blockNumber}] assetId[${assetId}] value[${dat.value}]`)
-            record.save()
-        })
+            await record.save()
+        }
     } catch (e: any) {
         logger.error(`handle asset value polling error: ${e.message}`)
     }
@@ -143,9 +143,10 @@ export async function handleBlock(block: SubstrateBlock): Promise<void> {
             api.query.oracle.rawValues.keys()
         ])
 
-        handlePool(pkeys, blockNumber, timestamp)
-        handleValue(vkeys, blockNumber)
-
+        await Promise.all([
+            handlePool(pkeys, blockNumber, timestamp),
+            handleValue(vkeys, blockNumber)
+        ])
     } catch (e: any) {
         logger.error(`block error: %o`, e.message)
     }
