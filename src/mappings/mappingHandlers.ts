@@ -1,7 +1,7 @@
 import { SubstrateEvent, SubstrateBlock } from "@subql/types";
 import { AssetValue, LiquidityPool, Pool } from "../types";
 import { handleAddLiquidity, handleCreatePool, handleRmoveLiquidity, handleSwapTrade } from './ammHandler'
-import { bigIntStr, parseId } from "./util";
+import { bigIntStr, handlePolicy, parseId } from "./util";
 
 
 async function handlePool(pkeys: any[], blockNumber: number, timestamp: Date) {
@@ -99,6 +99,10 @@ export async function handleBlock(block: SubstrateBlock): Promise<void> {
     try {
         const blockNumber = block.block.header.number.toNumber()
         const timestamp = block.timestamp
+        if (!handlePolicy(timestamp)) {
+            return
+        }
+        logger.info(`start to handle block[${blockNumber}]: ${timestamp}`)
         const [pkeys, vkeys] = await Promise.all([
             api.query.amm.pools.keys(),
             api.query.oracle.rawValues.keys()
