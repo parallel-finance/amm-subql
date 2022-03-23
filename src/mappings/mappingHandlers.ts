@@ -1,33 +1,183 @@
-import {SubstrateExtrinsic,SubstrateEvent,SubstrateBlock} from "@subql/types";
-import {StarterEntity} from "../types";
-import {Balance} from "@polkadot/types/interfaces";
+import { SubstrateEvent, SubstrateBlock } from "@subql/types";
+import { AssetValue, LiquidityPool, Pool } from "../types";
+import { handleAddLiquidity, handleCreatePool, handleRmoveLiquidity, handleSwapTrade } from './ammHandler'
+import { bigIntStr, handlePolicy, parseId } from "./util";
 
+
+async function handlePool(pkeys: any[], blockNumber: number, timestamp: Date) {
+    try {
+        let kps = []
+        let poolQueries = []
+        pkeys.map(k => {
+            const kp = (k.toHuman() as string[]).map(s => parseId(s))
+            kps.push(kp)
+            poolQueries.push(api.query.amm.pools(kp[0], kp[1]))
+        })
+        const poolRes = await Promise.all(poolQueries)
+
+        for (let ind in poolRes) {
+            const kp = kps[ind]
+            const {
+                baseAmount,
+                quoteAmount,
+                baseAmountLast,
+                quoteAmountLast,
+                lpTokenId,
+                blockTimestampLast,
+                price0CumulativeLast,
+                price1CumulativeLast
+            } = poolRes[ind].toJSON()
+
+            const t = (new Date(timestamp)).valueOf() / 1000
+            const lpid = `${lpTokenId}-${blockNumber}-${t}`
+            const pool = await Pool.get(lpTokenId)
+            if (!pool) {
+                await Pool.create({
+                    id: `${lpTokenId}`,
+                    blockHeight: blockNumber,
+                    trader: '',
+                    baseTokenId: kp[0],
+                    quoteTokenId: kp[1],
+                    timestamp
+                }).save()
+            }
+            const record = LiquidityPool.create({
+                id: lpid,
+                blockHeight: blockNumber,
+                poolId: lpTokenId,
+                action: 'Polling',
+                baseVolume: bigIntStr(baseAmount),
+                quoteVolume: bigIntStr(quoteAmount),
+                baseVolumeLast: bigIntStr(baseAmountLast),
+                quoteVolumnLase: bigIntStr(quoteAmountLast),
+                basePriceCumulativeLast: bigIntStr(price0CumulativeLast),
+                quotePriceCumulativeLast: bigIntStr(price1CumulativeLast),
+                blockTimestampLast,
+                timestamp,
+            })
+            logger.debug(`dump new pool info at[${blockNumber}] pool[${lpTokenId}]`)
+            await record.save()
+        }
+    } catch (e: any) {
+        logger.error(`handle pool info error: ${e.message}`)
+    }
+}
+
+async function handleValue(vkeys: any[], blockNumber: number) {
+    try {
+        // wrap api query
+        let pars = []
+        let valueQueries = []
+        for (let k of vkeys) {
+            let [owner, assetId] = k.toHuman() as any[]
+            assetId = parseId(assetId)
+            pars.push([owner, assetId])
+            valueQueries.push(api.query.oracle.rawValues(owner, assetId))
+        }
+
+        const valueRes = await Promise.all(valueQueries)
+
+        // group by assetId
+        let groups = {}
+        for (let ind in pars) {
+            const assetId = pars[ind][1]
+            groups[assetId] = groups[assetId] || []
+            groups[assetId].push(valueRes[ind])
+        }
+
+        for (let assetId of Object.keys(groups)) {
+            // sort by value
+            groups[assetId].sort((a, b) => {
+                const ja = a.toJSON()
+                const jb = b.toJSON()
+                const n = Number(BigInt(ja.value) - BigInt(jb.value))
+                return n
+            })
+            const grp = groups[assetId]
+            const len = grp.length
+            const isEven = len % 2 === 0
+            let dat: { value: string, timestamp: number }
+            // handle middle
+            if (isEven) {
+                const ind = Math.floor(len / 2)
+                const it1 = JSON.parse(grp[ind])
+                const it2 = JSON.parse(grp[ind - 1])
+                // 
+                dat = {
+                    value: ((BigInt(it1.value) + BigInt(it2.value)) / BigInt(2)).toString(),
+                    timestamp: it1.timestamp
+                }
+            } else {
+                const { value, timestamp } = JSON.parse(grp[Math.floor(len / 2)])
+                dat = {
+                    value: BigInt(value).toString(),
+                    timestamp
+                }
+            }
+
+            const record = AssetValue.create({
+                id: `${blockNumber}-${assetId}`,
+                blockHeight: blockNumber,
+                assetId: Number(assetId),
+                value: dat.value,
+                blockTimevalue: Math.floor(dat.timestamp / 1000).toString()
+            })
+            logger.info(`dump new asset value at[${blockNumber}] assetId[${assetId}] value[${dat.value}]`)
+            await record.save()
+        }
+    } catch (e: any) {
+        logger.error(`handle asset value polling error: ${e.message}`)
+    }
+}
 
 export async function handleBlock(block: SubstrateBlock): Promise<void> {
-    //Create a new starterEntity with ID using block hash
-    let record = new StarterEntity(block.block.header.hash.toString());
-    //Record block number
-    record.field1 = block.block.header.number.toNumber();
-    await record.save();
+    try {
+        const blockNumber = block.block.header.number.toNumber()
+        const timestamp = block.timestamp
+        if (!handlePolicy(timestamp)) {
+            return
+        }
+        logger.info(`start to handle block[${blockNumber}]: ${timestamp}`)
+        const [pkeys, vkeys] = await Promise.all([
+            api.query.amm.pools.keys(),
+            api.query.oracle.rawValues.keys()
+        ])
+
+        await Promise.all([
+            handlePool(pkeys, blockNumber, timestamp),
+            handleValue(vkeys, blockNumber)
+        ])
+    } catch (e: any) {
+        logger.error(`block error: %o`, e.message)
+    }
 }
 
 export async function handleEvent(event: SubstrateEvent): Promise<void> {
-    const {event: {data: [account, balance]}} = event;
-    //Retrieve the record by its ID
-    const record = await StarterEntity.get(event.block.block.header.hash.toString());
-    record.field2 = account.toString();
-    //Big integer type Balance of a transfer event
-    record.field3 = (balance as Balance).toBigInt();
-    await record.save();
-}
+    const { event: { data } } = event;
+    const method = event.event.method
+    const jsdata = JSON.parse(data.toString())
+    const ext = event.extrinsic.extrinsic
+    const hash = ext.hash.toString()
+    const block = event.block.block.header.number.toNumber()
+    const timestamp = event.block.timestamp
+    const handleOptions = { data: jsdata, block, timestamp, hash }
 
-export async function handleCall(extrinsic: SubstrateExtrinsic): Promise<void> {
-    const record = await StarterEntity.get(extrinsic.block.block.header.hash.toString());
-    //Date type timestamp
-    record.field4 = extrinsic.block.timestamp;
-    //Boolean tyep
-    record.field5 = true;
-    await record.save();
+    logger.info(`start to handle event[${method}]`)
+    switch (method) {
+        case 'LiquidityAdded':
+            await handleAddLiquidity(handleOptions)
+            break
+        case 'LiquidityRemoved':
+            await handleRmoveLiquidity(handleOptions)
+            break
+        case 'PoolCreated':
+            await handleCreatePool(handleOptions)
+            break
+        case 'Traded':
+            await handleSwapTrade(handleOptions)
+            break
+        default:
+            logger.error(`unknow event[${method}] to handle`)
+    }
 }
-
 
