@@ -19,7 +19,6 @@ type TokenSwap @entity {
   toToken: Token!
   qtyFrom: BigInt!
   qtyTo: BigInt!
-  fees: Int!
   account: String!
 }
 
@@ -28,7 +27,6 @@ type LiquidityDeposit @entity {
   timestamp: Date!
   account: String!
   pool: LiquidityPool! @index
-  quantityLPTokenReceived: BigInt!
   quantityBaseTokenProvided: BigInt!
   quantityQuoteTokenProvided: BigInt!
 }

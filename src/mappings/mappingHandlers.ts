@@ -7,7 +7,7 @@ import { Balance } from "@polkadot/types/interfaces";
 import { LiquidityPool, Token, TokenSwap } from "../types";
 import { LiquidityDeposit } from "../types/models/LiquidityDeposit";
 import { LiquidityWithdrawal } from "../types/models/LiquidityWithdrawal";
-import * as uuid from "uuid";
+const { v4 } = require("uuid");
 
 // Token:Create
 export const handleTokenCreate = async (event: SubstrateEvent) => {
@@ -88,7 +88,7 @@ export const handlePoolCreate = async (event: SubstrateEvent) => {
   if (method === "PoolCreated") {
     try {
       console.log("Pool Created Event: ", tokenLP);
-      const pool = new LiquidityPool(`999000${tokenLP.toString()}`);
+      const pool = new LiquidityPool(v4());
       const base = await fetchToken(tokenBase.toString());
       const quote = await fetchToken(tokenQuote.toString());
       const lp = await fetchToken(tokenLP.toString());
@@ -110,40 +110,53 @@ export const handlePoolCreate = async (event: SubstrateEvent) => {
 export const handlePoolAddLiquidity = async (event: SubstrateEvent) => {
   const {
     event: {
+      //         sender: T::AccountId,
+      //         base_currency_id: AssetIdOf<T, I>,
+      //         quote_currency_id: AssetIdOf<T, I>,
+      //         base_amount_added: BalanceOf<T, I>,
+      //         quote_amount_added: BalanceOf<T, I>,
+      //         lp_token_id: AssetIdOf<T, I>,
+      //         new_base_amount: BalanceOf<T, I>,
+      //         new_quote_amount: BalanceOf<T, I>,
       data: [
         sender,
         tokenBase,
         tokenQuote,
-        tokenLP,
         quantityBase,
         quantityQuote,
+        tokenLP,
+        newBaseAmount,
+        newQuoteAmount,
       ],
     },
   } = event;
   console.log("Pool Add Liquidity Event: ", tokenLP);
   try {
-    const [pool] = await LiquidityPool.getByPoolTokenId(tokenLP.toString());
+    const pooldata = await LiquidityPool.getByPoolTokenId(tokenLP.toString());
+    const [pool] = pooldata;
     if (
-      pool.baseTokenId === tokenBase.toString() &&
-      pool.quoteTokenId === tokenQuote.toString()
+      pool?.baseTokenId === tokenBase.toString() &&
+      pool?.quoteTokenId === tokenQuote.toString()
     ) {
-      const deposit = new LiquidityDeposit(uuid.v4());
-      const qtyBase = BigInt(quantityBase.toHuman() as string);
-      const qtyQuote = BigInt(quantityQuote.toHuman() as string);
+      const deposit = new LiquidityDeposit(v4());
+      const qtyBase = BigInt(quantityBase.toString());
+      const qtyQuote = BigInt(quantityQuote.toString());
       deposit.account = sender.toString();
       deposit.timestamp = new Date();
       deposit.quantityBaseTokenProvided = qtyBase;
       deposit.quantityQuoteTokenProvided = qtyQuote;
 
       deposit.poolId = pool.id;
-      pool.baseTokenVolume += qtyBase;
-      pool.quoteTokenVolume += qtyQuote;
-      await deposit.save();
-      await pool.save();
+      pool.baseTokenVolume = BigInt(newBaseAmount.toString());
+      pool.quoteTokenVolume = BigInt(newQuoteAmount.toString());
+      await Promise.all([deposit.save(), pool.save()]);
     } else {
+      console.error("didnt work::");
       // log error when unmatched
     }
-  } catch (e) {}
+  } catch (e) {
+    console.error("failed:!:", e);
+  }
 };
 
 // Pool:RemoveLiquidity
@@ -157,10 +170,12 @@ export const handlePoolRemoveLiquidity = async (event: SubstrateEvent) => {
         sender,
         tokenBase,
         tokenQuote,
-        tokenLP,
+        quantityLP,
         quantityBase,
         quantityQuote,
-        quantityLP,
+        tokenLP,
+        newBaseAmount,
+        newQuoteAmount,
       ],
     },
   } = event;
@@ -169,13 +184,22 @@ export const handlePoolRemoveLiquidity = async (event: SubstrateEvent) => {
 
     const [pool] = await LiquidityPool.getByPoolTokenId(tokenLP.toString());
     if (
-      pool.baseTokenId === tokenBase.toString() &&
-      pool.quoteTokenId === tokenQuote.toString()
+      pool?.baseTokenId === tokenBase.toString() &&
+      pool?.quoteTokenId === tokenQuote.toString()
     ) {
-      const withdrawal = new LiquidityWithdrawal(uuid.v4());
-      const qtyBase = (quantityBase as Balance).toBigInt();
-      const qtyQuote = (quantityQuote as Balance).toBigInt();
-      const qtyLP = (quantityLP as Balance).toBigInt();
+      //         sender: T::AccountId,
+      //         base_currency_id: AssetIdOf<T, I>,
+      //         quote_currency_id: AssetIdOf<T, I>,
+      //         liquidity: BalanceOf<T, I>,
+      //         base_amount_removed: BalanceOf<T, I>,
+      //         quote_amount_removed: BalanceOf<T, I>,
+      //         lp_token_id: AssetIdOf<T, I>,
+      //         new_base_amount: BalanceOf<T, I>,
+      //         new_quote_amount: BalanceOf<T, I>,
+      const withdrawal = new LiquidityWithdrawal(v4());
+      const qtyBase = BigInt(quantityBase.toString());
+      const qtyQuote = BigInt(quantityQuote.toString());
+      const qtyLP = BigInt(quantityLP.toString());
 
       withdrawal.account = sender.toString();
       withdrawal.timestamp = new Date();
@@ -184,8 +208,8 @@ export const handlePoolRemoveLiquidity = async (event: SubstrateEvent) => {
       withdrawal.quantityQuoteTokenReceived = qtyQuote;
       withdrawal.quantityLPTokenProvided = qtyLP;
 
-      pool.baseTokenVolume -= qtyBase;
-      pool.quoteTokenVolume -= qtyQuote;
+      pool.baseTokenVolume = BigInt(newBaseAmount.toString());
+      pool.quoteTokenVolume = BigInt(newQuoteAmount.toString());
       await withdrawal.save();
       await pool.save();
     } else {
@@ -205,83 +229,92 @@ export const handleAmmTrade = async (event: SubstrateEvent) => {
         sender,
         tokenBase,
         tokenQuote,
-        tokenLP,
         quantityBase,
         quantityQuote,
-        poolBalanceBase,
-        poolBalanceQuote,
+        tokenLP,
+        newBaseAmount,
+        newQuoteAmount,
       ],
     },
   } = event;
   console.log("AMM Trade Event: ", tokenLP);
+  //         trader: T::AccountId,
+  //         currency_id_in: AssetIdOf<T, I>,
+  //         currency_id_out: AssetIdOf<T, I>,
+  //         amount_in: BalanceOf<T, I>,
+  //         amount_out: BalanceOf<T, I>,
+  //         lp_token_id: AssetIdOf<T, I>,
+  //         new_quote_amount: BalanceOf<T, I>,
+  //         new_base_amount: BalanceOf<T, I>,
+  try {
+    const [pool] = await LiquidityPool.getByPoolTokenId(tokenLP.toString());
+    if (
+      (pool?.baseTokenId === tokenBase.toString() &&
+        pool?.quoteTokenId === tokenQuote.toString()) ||
+      (pool?.quoteTokenId === tokenBase.toString() &&
+        pool?.baseTokenId === tokenQuote.toString())
+    ) {
+      const trade = new TokenSwap(v4());
+      const qtyBase = BigInt(quantityBase.toString());
+      const qtyQuote = BigInt(quantityQuote.toString());
+      trade.account = sender.toString();
+      trade.timestamp = new Date();
+      trade.fromTokenId = tokenBase.toString();
+      trade.toTokenId = tokenQuote.toString();
+      trade.qtyFrom = qtyBase;
+      trade.qtyTo = qtyQuote;
+      trade.poolId = pool.id;
 
-  const [pool] = await LiquidityPool.getByPoolTokenId(tokenLP.toString());
-  if (
-    pool.baseTokenId === tokenBase.toString() &&
-    pool.quoteTokenId === tokenQuote.toString()
-  ) {
-    const trade = new TokenSwap(uuid.v4());
-    const qtyBase = (quantityBase as Balance).toBigInt();
-    const qtyQuote = (quantityQuote as Balance).toBigInt();
-    const balanceBase = (poolBalanceBase as Balance).toBigInt();
-    const balanceQuote = (poolBalanceQuote as Balance).toBigInt();
-    trade.account = sender.toString();
-    trade.timestamp = new Date();
-    trade.fromTokenId = tokenBase.toString();
-    trade.toTokenId = tokenQuote.toString();
-    trade.qtyFrom = qtyBase;
-    trade.qtyTo = qtyQuote;
-    trade.poolId = pool.id;
-
-    pool.baseTokenVolume = balanceBase;
-    pool.quoteTokenVolume = balanceQuote;
-    await trade.save();
-    await pool.save();
-  } else {
-    // log error when unmatched
-  }
+      pool.baseTokenVolume = BigInt(newBaseAmount.toString());
+      pool.quoteTokenVolume = BigInt(newQuoteAmount.toString());
+      await Promise.all([trade.save(), pool.save()]);
+    } else {
+      // log error when unmatched
+    }
+  } catch (e) {}
 };
 
-// // Add Liquidity
-// - include both pool token balances?
-// - include pool asset id to identify the pool added to
-
-// // Remove Liquidity
-// - include both pool token balances after?
-// - include the pool asset id?
-// - include both quantities of token removed (currently says 'liquidity')
-
-// // Trade
-// - include the pool asset id
-// - include the fees amount ? I could pull this from a state object to track the current fees
-
-// export async function handleCall(extrinsic: SubstrateExtrinsic): Promise<void> {
-//     const record = await StarterEntity.get(extrinsic.block.block.header.hash.toString());
-//     //Date type timestamp
-//     record.field4 = extrinsic.block.timestamp;
-//     //Boolean tyep
-//     record.field5 = true;
-//     await record.save();
-// }
-// GenerateDailyPoolTVL?
-
-// Default Handlers
-
-// Not handling any data by block
-// export async function handleBlock(block: SubstrateBlock): Promise<void> {
-//     //Create a new starterEntity with ID using block hash
-//     let record = new StarterEntity(block.block.header.hash.toString());
-//     //Record block number
-//     record.field1 = block.block.header.number.toNumber();
-//     await record.save();
-// }
-
-// export async function handleEvent(event: SubstrateEvent): Promise<void> {
-//     const {event: {data: [account, balance]}} = event;
-//     //Retrieve the record by its ID
-//     const record = await StarterEntity.get(event.block.block.header.hash.toString());
-//     record.field2 = account.toString();
-//     //Big integer type Balance of a transfer event
-//     record.field3 = (balance as Balance).toBigInt();
-//     await record.save();
+// #[pallet::generate_deposit(pub (crate) fn deposit_event)]
+// pub enum Event<T: Config<I>, I: 'static = ()> {
+//     /// Add liquidity into pool
+//     LiquidityAdded {
+//         sender: T::AccountId,
+//         base_currency_id: AssetIdOf<T, I>,
+//         quote_currency_id: AssetIdOf<T, I>,
+//         base_amount_added: BalanceOf<T, I>,
+//         quote_amount_added: BalanceOf<T, I>,
+//         lp_token_id: AssetIdOf<T, I>,
+//         new_base_amount: BalanceOf<T, I>,
+//         new_quote_amount: BalanceOf<T, I>,
+//     },
+//     /// Remove liquidity from pool
+//     LiquidityRemoved {
+//         sender: T::AccountId,
+//         base_currency_id: AssetIdOf<T, I>,
+//         quote_currency_id: AssetIdOf<T, I>,
+//         liquidity: BalanceOf<T, I>,
+//         base_amount_removed: BalanceOf<T, I>,
+//         quote_amount_removed: BalanceOf<T, I>,
+//         lp_token_id: AssetIdOf<T, I>,
+//         new_base_amount: BalanceOf<T, I>,
+//         new_quote_amount: BalanceOf<T, I>,
+//     },
+//     /// A Pool has been created
+//     PoolCreated {
+//         trader: T::AccountId,
+//         currency_id_in: AssetIdOf<T, I>,
+//         currency_id_out: AssetIdOf<T, I>,
+//         lp_token_id: AssetIdOf<T, I>,
+//     },
+//     /// Trade using liquidity
+//     Traded {
+//         trader: T::AccountId,
+//         currency_id_in: AssetIdOf<T, I>,
+//         currency_id_out: AssetIdOf<T, I>,
+//         amount_in: BalanceOf<T, I>,
+//         amount_out: BalanceOf<T, I>,
+//         lp_token_id: AssetIdOf<T, I>,
+//         new_quote_amount: BalanceOf<T, I>,
+//         new_base_amount: BalanceOf<T, I>,
+//     },
 // }
