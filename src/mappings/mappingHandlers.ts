@@ -130,7 +130,6 @@ async function handleValue(vkeys: any[], blockNumber: number) {
             .times(2)
             .dividedBy(lp.supply);
 
-          logger.info('value: ' + value);
           return AssetValue.create({
             id: `${blockNumber}-${lp.id}`,
             blockHeight: blockNumber,
