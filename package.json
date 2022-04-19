@@ -7,7 +7,9 @@
     "build": "tsc -b",
     "prepack": "rm -rf dist && npm build",
     "test": "jest",
-    "codegen": "./node_modules/.bin/subql codegen"
+    "codegen": "./node_modules/.bin/subql codegen",
+    "ipfs:heiko": "subql publish -f ./deploy-heiko.yaml",
+    "ipfs:para": "subql publish -f ./deploy-parallel.yaml"
   },
   "homepage": "https://github.com/subquery/subql-starter",
   "repository": "github:subquery/subql-starter",
@@ -23,9 +25,13 @@
     "lodash": "^4.17.21"
   },
   "devDependencies": {
+    "@parallel-finance/type-definitions": "^1.6.5",
     "@polkadot/api": "^7",
     "@subql/cli": "latest",
     "@subql/types": "latest",
     "typescript": "^4.1.3"
+  },
+  "exports": {
+    "chaintypes": "./src/chaintypes.ts"
   }
 }
