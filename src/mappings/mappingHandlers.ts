@@ -146,20 +146,14 @@ async function handleValue(valueKeys: [string, string][], blockNumber: number) {
             `dump lpToken asset value at[${blockNumber}] assetId[${assetId}] value[${data.value}]`
           );
 
-          const record = await AssetValue.get(`${blockNumber}-${lp.id}`);
-          if (record) {
-            record.value = value;
-            await record.save();
-          } else {
-            const record = AssetValue.create({
-              id: `${blockNumber}-${lp.id}`,
-              blockHeight: blockNumber,
-              assetId: Number(lp.id),
-              value,
-              blockTimevalue: Math.floor(data.timestamp / 1000).toString()
-            });
-            await record.save();
-          }
+          const record = AssetValue.create({
+            id: `${blockNumber}-${lp.id}`,
+            blockHeight: blockNumber,
+            assetId: Number(lp.id),
+            value,
+            blockTimevalue: Math.floor(data.timestamp / 1000).toString()
+          });
+          await record.save();
         });
 
         // add sKSM price
