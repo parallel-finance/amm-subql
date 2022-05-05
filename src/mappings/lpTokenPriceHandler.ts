@@ -3,18 +3,25 @@ import { u32 } from '@polkadot/types';
 import { divDecs } from './util';
 
 const relayAssetId = (api.consts.crowdloans.relayCurrency as u32).toNumber();
+const nativeAssetId = api?.consts?.currencyAdapter?.getNativeCurrencyId?.toString();
 
-export const getLptokens = async () => {
+export const getLpTokens = async () => {
   const metadatas = await api.query.assets.metadata.entries();
-  const allAssets = metadatas.map(([{ args }, metadata]) => {
-    const [assetId] = args;
-    const { symbol, decimals } = metadata;
-    return {
-      assetId: assetId.toNumber(),
-      symbol: symbol.toHuman().toString(),
-      decimals: decimals.toNumber()
-    };
-  });
+  const allAssets = [
+    ...metadatas.map(([{ args }, metadata]) => {
+      const [assetId] = args;
+      const { symbol, decimals } = metadata;
+      return {
+        assetId: assetId.toNumber(),
+        symbol: symbol.toHuman().toString(),
+        decimals: decimals.toNumber()
+      };
+    }),
+    {
+      assetId: api?.consts?.currencyAdapter?.getNativeCurrencyId?.toString(),
+      symbol: nativeAssetId === '0' ? 'HKO' : 'PARA' // hard code, cuz rpc is not available in subquery
+    }
+  ];
 
   const lpTokens = allAssets?.filter(asset => asset.symbol.startsWith('LP-')) || [];
   const lpTokenMappings = lpTokens
@@ -70,7 +77,7 @@ export const getLptokens = async () => {
         );
       }
     ).filter(Boolean) as {
-      id: string;
+      id: number;
       supply: number;
       baseAssetAmount: number;
     }[];

@@ -1,5 +1,6 @@
 import { SubstrateEvent, SubstrateBlock } from '@subql/types';
-import { u32, StorageKey } from '@polkadot/types';
+import { u128 } from '@polkadot/types';
+import { BN_QUINTILL, BN } from '@polkadot/util';
 import { AssetValue, LiquidityPool, Pool } from '../types';
 import {
   handleAddLiquidity,
@@ -8,10 +9,11 @@ import {
   handleSwapTrade
 } from './ammHandler';
 import { bigIntStr, handlePolicy } from './util';
-import { getLptokens } from './lpTokenPriceHandler';
+import { getLpTokens } from './lpTokenPriceHandler';
 import BigNumber from 'bignumber.js';
 
-const relayAssetId = (api.consts.crowdloans.relayCurrency as u32).toString();
+const relayAssetId = api.consts.crowdloans.relayCurrency.toString();
+const liquidStakingAssetId = api.consts.liquidStaking.liquidCurrency.toString();
 
 async function handlePool(pkeys: string[][], blockNumber: number, timestamp: Date) {
   try {
@@ -71,24 +73,21 @@ async function handlePool(pkeys: string[][], blockNumber: number, timestamp: Dat
   }
 }
 
-async function handleValue(vkeys: any[], blockNumber: number) {
+async function handleValue(valueKeys: [string, string][], blockNumber: number) {
   try {
     // wrap api query
-    let pars = [];
-    let valueQueries = [];
-    for (let k of vkeys) {
-      pars.push(k);
-      valueQueries.push(api.query.oracle.rawValues(...k));
-    }
-
-    const valueRes = await Promise.all(valueQueries);
+    const valueRes = await api.query.oracle.rawValues.multi(valueKeys);
+    const lpTokens = await getLpTokens();
+    const lpTokenAssetIds = lpTokens.map(i => i.id.toString());
 
     // group by assetId
     let groups = {};
-    for (let ind in pars) {
-      const assetId = pars[ind][1];
-      groups[assetId] = groups[assetId] || [];
-      groups[assetId].push(valueRes[ind]);
+    for (let index in valueKeys) {
+      const assetId = valueKeys[index][1];
+      if (![...lpTokenAssetIds, liquidStakingAssetId].includes(assetId)) {
+        groups[assetId] = groups[assetId] || [];
+        groups[assetId].push(valueRes[index]);
+      }
     }
 
     for (let assetId of Object.keys(groups)) {
@@ -102,56 +101,82 @@ async function handleValue(vkeys: any[], blockNumber: number) {
       const grp = groups[assetId];
       const len = grp.length;
       const isEven = len % 2 === 0;
-      let dat: { value: string; timestamp: number };
+      let data: { value: string; timestamp: number };
       // handle middle
       if (isEven) {
         const ind = Math.floor(len / 2);
         const it1 = JSON.parse(grp[ind]);
         const it2 = JSON.parse(grp[ind - 1]);
         //
-        dat = {
+        data = {
           value: ((BigInt(it1.value) + BigInt(it2.value)) / BigInt(2)).toString(),
           timestamp: it1.timestamp
         };
       } else {
         const { value, timestamp } = JSON.parse(grp[Math.floor(len / 2)]);
-        dat = {
+        data = {
           value: BigInt(value).toString(),
           timestamp
         };
-      }
-
-      if (assetId === relayAssetId) {
-        const lptokens = await getLptokens();
-
-        const lpRecords = lptokens.map(lp => {
-          const value = new BigNumber(lp.baseAssetAmount)
-            .times(dat.value)
-            .times(2)
-            .dividedBy(lp.supply);
-
-          return AssetValue.create({
-            id: `${blockNumber}-${lp.id}`,
-            blockHeight: blockNumber,
-            assetId: Number(lp.id),
-            value: parseInt(value.toString()).toString(),
-            blockTimevalue: Math.floor(dat.timestamp / 1000).toString()
-          });
-        });
-        lpRecords.forEach(record => record.save());
       }
 
       const record = AssetValue.create({
         id: `${blockNumber}-${assetId}`,
         blockHeight: blockNumber,
         assetId: Number(assetId),
-        value: dat.value,
-        blockTimevalue: Math.floor(dat.timestamp / 1000).toString()
+        value: data.value,
+        blockTimevalue: Math.floor(data.timestamp / 1000).toString()
       });
       logger.info(
-        `dump new asset value at[${blockNumber}] assetId[${assetId}] value[${dat.value}]`
+        `dump new asset value at[${blockNumber}] assetId[${assetId}] value[${data.value}]`
       );
       await record.save();
+
+      if (relayAssetId === assetId) {
+        // add LP token price
+
+        lpTokens.forEach(async lp => {
+          const value = new BigNumber(lp.baseAssetAmount)
+            .times(data.value)
+            .times(2)
+            .dividedBy(lp.supply)
+            .toFixed(0);
+
+          logger.info(
+            `dump lpToken asset value at[${blockNumber}] assetId[${assetId}] value[${data.value}]`
+          );
+
+          const record = await AssetValue.get(`${blockNumber}-${lp.id}`);
+          if (record) {
+            record.value = value;
+            await record.save();
+          } else {
+            const record = AssetValue.create({
+              id: `${blockNumber}-${lp.id}`,
+              blockHeight: blockNumber,
+              assetId: Number(lp.id),
+              value,
+              blockTimevalue: Math.floor(data.timestamp / 1000).toString()
+            });
+            await record.save();
+          }
+        });
+
+        // add sKSM price
+        const liquidStakingExchangeRate = (await api.query.liquidStaking.exchangeRate()) as u128;
+        const liquidRecord = AssetValue.create({
+          id: `${blockNumber}-${liquidStakingAssetId}`,
+          blockHeight: blockNumber,
+          assetId: Number(liquidStakingAssetId),
+          value: liquidStakingExchangeRate.div(BN_QUINTILL).mul(new BN(data.value)).toString(),
+          blockTimevalue: Math.floor(data.timestamp / 1000).toString()
+        });
+
+        logger.info(
+          `dump liquidStaking asset value at[${blockNumber}] assetId[${liquidStakingAssetId}] value[${data.value}]`
+        );
+        await liquidRecord.save();
+      }
     }
   } catch (e: any) {
     logger.error(`handle asset value polling error: ${e.message} ${e.name}`);
@@ -166,19 +191,19 @@ export async function handleBlock(block: SubstrateBlock): Promise<void> {
       return;
     }
     logger.info(`start to handle block[${blockNumber}]: ${timestamp}`);
-    const [pkeys, vkeys] = await Promise.all([
+    const [poolKeys, valueKeys] = await Promise.all([
       api.query.amm.pools.keys(),
       api.query.oracle.rawValues.keys()
     ]);
 
     await Promise.all([
       handlePool(
-        pkeys.map(({ args: [v1, v2] }) => [v1.toString(), v2.toString()]),
+        poolKeys.map(({ args: [v1, v2] }) => [v1.toString(), v2.toString()]),
         blockNumber,
         timestamp
       ),
       handleValue(
-        vkeys.map(({ args: [v1, v2] }) => [v1.toString(), v2.toString()]),
+        valueKeys.map(({ args: [v1, v2] }) => [v1.toString(), v2.toString()]),
         blockNumber
       )
     ]);
