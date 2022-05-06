@@ -3,7 +3,7 @@ import { u32 } from '@polkadot/types';
 import { divDecs } from './util';
 
 const relayAssetId = (api.consts.crowdloans.relayCurrency as u32).toNumber();
-const nativeAssetId = api?.consts?.currencyAdapter?.getNativeCurrencyId?.toString();
+const nativeAssetId = (api.consts.currencyAdapter.getNativeCurrencyId as u32).toNumber();
 
 export const getLpTokens = async () => {
   const metadatas = await api.query.assets.metadata.entries();
@@ -18,8 +18,8 @@ export const getLpTokens = async () => {
       };
     }),
     {
-      assetId: api?.consts?.currencyAdapter?.getNativeCurrencyId?.toString(),
-      symbol: nativeAssetId === '0' ? 'HKO' : 'PARA' // hard code, cuz rpc is not available in subquery
+      assetId: nativeAssetId,
+      symbol: nativeAssetId === 0 ? 'HKO' : 'PARA' // hard code, cuz rpc is not available in subquery
     }
   ];
 
