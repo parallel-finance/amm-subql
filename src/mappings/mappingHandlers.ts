@@ -79,12 +79,13 @@ async function handleValue(valueKeys: [string, string][], blockNumber: number) {
     const valueRes = await api.query.oracle.rawValues.multi(valueKeys);
     const lpTokens = await getLpTokens();
     const lpTokenAssetIds = lpTokens.map(i => i.id.toString());
+    const excludeAssets = [...lpTokenAssetIds, liquidStakingAssetId];
 
     // group by assetId
     let groups = {};
     for (let index in valueKeys) {
       const assetId = valueKeys[index][1];
-      if (![...lpTokenAssetIds, liquidStakingAssetId].includes(assetId)) {
+      if (!excludeAssets.includes(assetId)) {
         groups[assetId] = groups[assetId] || [];
         groups[assetId].push(valueRes[index]);
       }
