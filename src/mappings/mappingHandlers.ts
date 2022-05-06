@@ -144,7 +144,7 @@ async function handleValue(valueKeys: [string, string][], blockNumber: number) {
             .toFixed(0);
 
           logger.info(
-            `dump lpToken asset value at[${blockNumber}] assetId[${assetId}] value[${data.value}]`
+            `dump lpToken asset value at[${blockNumber}] assetId[${lp.id}] value[${value}]`
           );
 
           const record = AssetValue.create({

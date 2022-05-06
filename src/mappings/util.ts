@@ -123,8 +123,8 @@ export function arrayGroupBy(list: any[], id: string) {
   return groupBy(list, item => [item[id]]);
 }
 
-export const divDecs = (value: BN, decimals: BN): number => {
-  const decsNum = parseInt(decimals.toString(), 10);
+export const divDecs = (value: BN, decimals: string): number => {
+  const decsNum = parseInt(decimals, 10);
   const base = new BigNumber(10).pow(decsNum);
   const valueNum = parseInt(value.toString(), 10);
   return Number.parseFloat(new BigNumber(valueNum).dividedBy(base).toFixed(decsNum));

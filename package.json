@@ -21,6 +21,7 @@
   "author": "Parallel Finance",
   "license": "MIT",
   "dependencies": {
+    "@types/lodash": "^4.14.182",
     "bignumber.js": "^9.0.2",
     "lodash": "^4.17.21"
   },
