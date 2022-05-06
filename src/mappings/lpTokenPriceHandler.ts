@@ -88,11 +88,7 @@ export const getLpTokens = async () => {
           }
         );
       }
-    ).filter(Boolean) as {
-      id: number;
-      supply: number;
-      baseAssetAmount: number;
-    }[];
+    ).filter(Boolean);
 
     return infos;
   } else {
