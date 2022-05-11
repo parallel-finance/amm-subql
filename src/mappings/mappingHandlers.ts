@@ -163,7 +163,7 @@ async function handleValue(valueKeys: [string, string][], blockNumber: number) {
           id: `${blockNumber}-${liquidStakingAssetId}`,
           blockHeight: blockNumber,
           assetId: Number(liquidStakingAssetId),
-          value: liquidStakingExchangeRate.div(BN_QUINTILL).mul(new BN(data.value)).toString(),
+          value: liquidStakingExchangeRate.mul(new BN(data.value)).div(BN_QUINTILL).toString(),
           blockTimevalue: Math.floor(data.timestamp / 1000).toString()
         });
 
