@@ -4,7 +4,7 @@
   "description": "Subql Server for indexing amm swap, lp and token creation events",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc -b",
+    "build": "subql build",
     "prepack": "rm -rf dist && npm build",
     "test": "jest",
     "codegen": "./node_modules/.bin/subql codegen",
@@ -27,7 +27,7 @@
   },
   "devDependencies": {
     "@parallel-finance/type-definitions": "^1.6.5",
-    "@polkadot/api": "^7",
+    "@polkadot/api": "^8",
     "@subql/cli": "latest",
     "@subql/types": "latest",
     "typescript": "^4.1.3"
